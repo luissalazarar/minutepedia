@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";       // necesario para Buffer
-export const dynamic = "force-dynamic"; // evita cache en Vercel
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const RENDER_URL =
+  process.env.RENDER_URL ||
   "https://minutepedia-render-974782876868.us-central1.run.app/render";
 
-const RENDER_SECRET = process.env.RENDER_SECRET;
+const RENDER_SECRET = process.env.RENDER_SECRET || "";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    if (!RENDER_SECRET) {
-      return NextResponse.json(
-        { error: "RENDER_SECRET not configured" },
-        { status: 500 }
-      );
-    }
+    const payload = await req.json().catch(() => ({}));
 
     const res = await fetch(RENDER_URL, {
       method: "POST",
@@ -23,17 +19,14 @@ export async function POST() {
         Authorization: `Bearer ${RENDER_SECRET}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({}), // aquí irá el payload real
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
       const text = await res.text();
+      console.error("CloudRun render failed:", res.status, text);
       return NextResponse.json(
-        {
-          error: "Render service failed",
-          status: res.status,
-          detail: text,
-        },
+        { error: "Render failed", status: res.status, detail: text },
         { status: 500 }
       );
     }
@@ -49,11 +42,9 @@ export async function POST() {
       },
     });
   } catch (err: any) {
+    console.error("API /api/render error:", err);
     return NextResponse.json(
-      {
-        error: "Unexpected error",
-        detail: err?.message ?? String(err),
-      },
+      { error: err?.message || "Unexpected error" },
       { status: 500 }
     );
   }
